@@ -1,0 +1,51 @@
+# Go build artifacts
+/bin/
+/build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go workspace file
+go.work
+
+# Dependency directories (remove the comment below if you use Go modules)
+/vendor/
+
+# IDE/editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.DS_Store
+
+# Logs
+*.log
+
+# Test output
+/testdata/
+
+# Coverage files
+*.coverprofile
+*.cov
+
+# MacOS
+.DS_Store
+
+# Node/npm (if any JS tooling)
+node_modules/
+
+# Python (if any tooling)
+__pycache__/
+*.pyc
+
+# Misc
+*.bak
+*.tmp
+
+# Ignore abigen generated files if needed (optional, comment out if you want to keep)
+# internal/contract/*/*.go
+
