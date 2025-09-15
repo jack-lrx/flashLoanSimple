@@ -4,16 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	goethereum "github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/gavin/flashLoanSimple/internal/contract/uniswapv2factory"
 	"github.com/gavin/flashLoanSimple/internal/contract/uniswapv2pair"
 	"math/big"
 	"os"
-	"strings"
 )
 
 // UniswapAdapter 负责与 Uniswap 闪电贷合约进行交互
@@ -72,57 +70,49 @@ func (u *UniswapAdapter) FlashLoan(ctx context.Context, amount *big.Int, receive
 // 参数 ctx: 上下文
 // 参数 tokenA, tokenB: 交易对
 // 返回值: 价格（单位：wei），错误信息
-func (u *UniswapAdapter) GetPrice(ctx context.Context, tokenA, tokenB string) (*big.Int, error) {
+func (u *UniswapAdapter) GetPrice(ctx context.Context, tokenA, tokenB string) (*big.Int, *big.Int, *big.Int, error) {
 	factoryAddr := common.HexToAddress(UniswapV2FactoryAddress)
-	// 只保留 getPair 查询部分，后续用合约绑定查询储备
-	factoryABI, err := abi.JSON(strings.NewReader(`[{"constant":true,"inputs":[{"internalType":"address","name":"tokenA","type":"address"},{"internalType":"address","name":"tokenB","type":"address"}],"name":"getPair","outputs":[{"internalType":"address","name":"pair","type":"address"}],"payable":false,"stateMutability":"view","type":"function"}]`))
+	// 使用 abigen 生成的 UniswapV2Factory binding 查询 pair 地址
+	factory, err := uniswapv2factory.NewUniswapv2factory(factoryAddr, u.client)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	tokenAAddr := common.HexToAddress(tokenA)
 	tokenBAddr := common.HexToAddress(tokenB)
-	input, err := factoryABI.Pack("getPair", tokenAAddr, tokenBAddr)
+	pairAddr, err := factory.GetPair(&bind.CallOpts{Context: ctx}, tokenAAddr, tokenBAddr)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
-	msg := goethereum.CallMsg{
-		To:   &factoryAddr,
-		Data: input,
-	}
-	result, err := u.client.CallContract(ctx, msg, nil)
-	if err != nil {
-		return nil, err
-	}
-	outputs, err := factoryABI.Unpack("getPair", result)
-	if err != nil || len(outputs) == 0 {
-		return nil, errors.New("getPair unpack failed")
-	}
-	pairAddr := outputs[0].(common.Address)
 	if pairAddr == (common.Address{}) {
-		return nil, errors.New("pair not found")
+		return nil, nil, nil, errors.New("pair not found")
 	}
 	pair, err := uniswapv2pair.NewUniswapv2pair(pairAddr, u.client)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	reserves, err := pair.GetReserves(&bind.CallOpts{Context: ctx})
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	reserve0 := reserves.Reserve0
 	reserve1 := reserves.Reserve1
 	if reserve0 == nil || reserve1 == nil {
-		return nil, errors.New("reserve0 or reserve1 is nil")
+		return nil, nil, nil, errors.New("reserve0 or reserve1 is nil")
 	}
 	if tokenAAddr.Hex() < tokenBAddr.Hex() {
 		if reserve0.Cmp(big.NewInt(0)) == 0 {
-			return nil, errors.New("zero reserve0")
+			return nil, nil, nil, errors.New("zero reserve0")
 		}
-		return new(big.Int).Div(reserve1, reserve0), nil
+		return new(big.Int).Div(reserve1, reserve0), reserve0, reserve1, nil
 	} else {
 		if reserve1.Cmp(big.NewInt(0)) == 0 {
-			return nil, errors.New("zero reserve1")
+			return nil, nil, nil, errors.New("zero reserve1")
 		}
-		return new(big.Int).Div(reserve0, reserve1), nil
+		return new(big.Int).Div(reserve0, reserve1), reserve0, reserve1, nil
 	}
+}
+
+// Client 返回 UniswapAdapter 的 client 对象
+func (u *UniswapAdapter) Client() *ethclient.Client {
+	return u.client
 }

@@ -75,42 +75,44 @@ const SushiSwapV2FactoryAddress = "0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac"
 // 参数 ctx: 上下文
 // 参数 tokenA, tokenB: 交易对
 // 返回值: 价格（单位：wei），错误信息
-func (s *SushiSwapAdapter) GetPrice(ctx context.Context, tokenA, tokenB string) (*big.Int, error) {
+func (s *SushiSwapAdapter) GetPrice(ctx context.Context, tokenA, tokenB string) (*big.Int, *big.Int, *big.Int, error) {
 	factoryAddr := common.HexToAddress(SushiSwapV2FactoryAddress)
 	// 使用 abigen 生成的 UniswapV2Factory binding 查询 pair 地址
 	factory, err := uniswapv2factory.NewUniswapv2factory(factoryAddr, s.client)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	tokenAAddr := common.HexToAddress(tokenA)
 	tokenBAddr := common.HexToAddress(tokenB)
-	pairAddr, err := factory.GetPair(nil, tokenAAddr, tokenBAddr)
+	pairAddr, err := factory.GetPair(&bind.CallOpts{Context: ctx}, tokenAAddr, tokenBAddr)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	if pairAddr == (common.Address{}) {
-		return nil, errors.New("pair not found")
+		return nil, nil, nil, errors.New("pair not found")
 	}
-	// 使用 abigen 生成的 binding 查询储备
 	pair, err := uniswapv2pair.NewUniswapv2pair(pairAddr, s.client)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
-	reserves, err := pair.GetReserves(nil)
+	reserves, err := pair.GetReserves(&bind.CallOpts{Context: ctx})
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 	reserve0 := reserves.Reserve0
 	reserve1 := reserves.Reserve1
+	if reserve0 == nil || reserve1 == nil {
+		return nil, nil, nil, errors.New("reserve0 or reserve1 is nil")
+	}
 	if tokenAAddr.Hex() < tokenBAddr.Hex() {
 		if reserve0.Cmp(big.NewInt(0)) == 0 {
-			return nil, errors.New("zero reserve0")
+			return nil, nil, nil, errors.New("zero reserve0")
 		}
-		return new(big.Int).Div(reserve1, reserve0), nil
+		return new(big.Int).Div(reserve1, reserve0), reserve0, reserve1, nil
 	} else {
 		if reserve1.Cmp(big.NewInt(0)) == 0 {
-			return nil, errors.New("zero reserve1")
+			return nil, nil, nil, errors.New("zero reserve1")
 		}
-		return new(big.Int).Div(reserve0, reserve1), nil
+		return new(big.Int).Div(reserve0, reserve1), reserve0, reserve1, nil
 	}
 }
