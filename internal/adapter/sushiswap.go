@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/gavin/flashLoanSimple/internal/contract/sushiswapv2factory"
+	"github.com/gavin/flashLoanSimple/internal/contract/uniswapv2factory"
 	"github.com/gavin/flashLoanSimple/internal/contract/uniswapv2pair"
 	"math/big"
 	"os"
@@ -77,7 +77,8 @@ const SushiSwapV2FactoryAddress = "0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac"
 // 返回值: 价格（单位：wei），错误信息
 func (s *SushiSwapAdapter) GetPrice(ctx context.Context, tokenA, tokenB string) (*big.Int, error) {
 	factoryAddr := common.HexToAddress(SushiSwapV2FactoryAddress)
-	factory, err := sushiswapv2factory.NewSushiswapv2factory(factoryAddr, s.client)
+	// 使用 abigen 生成的 UniswapV2Factory binding 查询 pair 地址
+	factory, err := uniswapv2factory.NewUniswapv2factory(factoryAddr, s.client)
 	if err != nil {
 		return nil, err
 	}
@@ -90,6 +91,7 @@ func (s *SushiSwapAdapter) GetPrice(ctx context.Context, tokenA, tokenB string) 
 	if pairAddr == (common.Address{}) {
 		return nil, errors.New("pair not found")
 	}
+	// 使用 abigen 生成的 binding 查询储备
 	pair, err := uniswapv2pair.NewUniswapv2pair(pairAddr, s.client)
 	if err != nil {
 		return nil, err
