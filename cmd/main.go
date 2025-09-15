@@ -1,11 +1,11 @@
 package main
 
 import (
-	"flashLoanSimple/api"
-	"flashLoanSimple/config"
-	"flashLoanSimple/internal/adapter"
-	"flashLoanSimple/internal/service"
-	"flashLoanSimple/pkg"
+	"github.com/gavin/flashLoanSimple/api"
+	"github.com/gavin/flashLoanSimple/config"
+	"github.com/gavin/flashLoanSimple/internal/adapter"
+	"github.com/gavin/flashLoanSimple/internal/service"
+	"github.com/gavin/flashLoanSimple/pkg"
 	"log"
 	"net/http"
 	"os"
